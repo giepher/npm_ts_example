@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "es2017",
+    "module": "commonjs",
+    "declaration": true,
+    "allowJs": true,
+    "strict": true
+  },
+  "include": ["./FirstService.ts", "./SecondService.ts"]
+}
