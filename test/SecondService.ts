@@ -1,11 +1,13 @@
-import { AService, ServiceOptions } from '../src/index'
+import { AbstractService, ServiceMessage, ServiceManager } from '../src/index'
 
-export class SecondService extends AService {
+export class SecondService extends AbstractService {
   protected file = __filename
 
   start() {
-    console.log('Test process' + this.conf.name + ' start')
-    process.exit()
+  }
+
+  callSelf(msg: ServiceMessage) {
+    this.callback({ fn: 'testCB', data: msg.data + 100 })
   }
 
 }

@@ -1,74 +1,108 @@
-import { ServiceManager, ServiceOptions } from '../src/index'
+import { ServiceManager, AbstractService } from '../src/index'
 import { FirstService } from './FirstService.js'
 import { SecondService } from './SecondService.js'
+let sm: ServiceManager
+let sMap: { [k: string]: AbstractService } = {}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, ms)
+  })
+}
 
 beforeAll(async () => {
-  const { exec } = require('child_process');
+  const { exec } = require('child_process')
   function cplServiceTs() {
     return new Promise((resolve, reject) => {
       exec('tsc -p ./test/tsconfig.json', (error: any, stdout: any, stderr: any) => {
         if (error) {
-          console.error(`exec error: ${error}`);
-          console.log(stdout);
+          console.error(`exec error: ${error}`)
+          console.log(stdout)
           reject(error)
         }
-        resolve();
-      });
-    });
+        resolve()
+      })
+    })
   }
-  await cplServiceTs();
-});
-
-test('Create instance', () => {
-  expect(new ServiceManager()).toBeInstanceOf(ServiceManager)
-})
-
-test('Add a TypeScript Service', async () => {
-  let sm = new ServiceManager().addService({
-    name: 'TS0',
-    comment: "It's a test service",
-    fork: true,
-    serviceName: FirstService
-  })
-  sm.stop(['TS0']);
-})
-
-
-test('Add multiple services', async () => {
-  jest.setTimeout(1100)
-  let sopt = [{
-    name: 'TS1',
+  await cplServiceTs()
+  sm = new ServiceManager()
+  let opt_proto = {
+    name: 'TS',
     comment: "yet another service",
-    fork: true,
     serviceName: FirstService
-  },
-  {
-    name: 'TS2',
-    comment: "yet another service",
-    fork: true,
-    serviceName: FirstService
-  }]
-  let sm = new ServiceManager()
-  for (var k in sopt) {
-    sm.addService(sopt[k])
+  }
+
+  for (let i = 1; i < 5; i++) {
+    let opt = { ...opt_proto }
+    opt.name = opt.name + '_' + i
+    sm.addService(opt)
+    sMap[opt.name] = sm.getServices([opt.name])[0]
   } // End for-in
-  // sopt.name = 'TS2'
-  // sm.addService(sopt)
-  // sm.start(['TS1', 'ST2'])
-  sm.stop(['TS1', 'TS2'])
-  // await new Promise((resolve, reject) => {
-  //   setTimeout(() => {
-  //     sm.stopAll()
-  //     resolve();
-  //   }, 1000)
-  // })
+
+  let opt = {
+    name: 'TS_10',
+    comment: "yet another service",
+    serviceName: SecondService
+  }
+  sm.addService(opt)
+  sMap[opt.name] = sm.getServices([opt.name])[0]
 })
 
-// test('Send stop to service', async () => {
-//   expect(new ServiceManager().addService({
-//     name: 'TestService',
-//     comment: "It's a test service",
-//     fork: true,
-//     serviceName: FirstService
-//   }).stop(['TestService'])).toBe(undefined)
-// })
+test('Create ServiceManager instance', () => {
+  expect(sm).toBeInstanceOf(ServiceManager)
+})
+
+test('Create Service instance', async () => {
+  jest.setTimeout(100)
+  let opt = {
+    name: 'TS_0',
+    comment: "yet another service",
+    serviceName: FirstService
+  }
+  sm.addService(opt)
+  let s = sm.getServices(['TS_0'])[0]
+  expect(s).toBeInstanceOf(AbstractService)
+  expect(s.isAlive()).toBe(true)
+})
+
+test('Stop service', async () => {
+  let sname = 'TS_0'
+  let s = sm.getServices([sname])[0]
+  expect(s).toBeInstanceOf(AbstractService)
+  expect(s.isAlive()).toBe(true)
+  sm.stop([sname])
+  await sleep(40)
+  expect(s.isAlive()).toBe(false)
+})
+
+test('Restart service', async () => {
+  let sname = 'TS_1'
+  let s = sm.getServices([sname])[0]
+  expect(s).toBeInstanceOf(AbstractService)
+  expect(s.isAlive()).toBe(true)
+  sm.stop([sname])
+  await sleep(40)
+  expect(s.isAlive()).toBe(false)
+  sm.restart([sname])
+  expect(s.isAlive()).toBe(true)
+})
+
+test('Send msg to service and get callback', async () => {
+  let sname = 'TS_10'
+  let s = sm.getServices([sname])[0]
+  s.testCB = (data: any) => {
+    expect(data.source).toBe(sname)
+    expect(data.data).toBe(200)
+  }
+  sm.send({ target: [sname], topic: '__EXEC', fn: 'callSelf', data: 100 })
+})
+
+afterAll(async () => {
+  for (let k in sMap) {
+    if (sMap[k].isAlive()) {
+      sm.stop([k])
+    } // End If
+  } // End for-in
+})
